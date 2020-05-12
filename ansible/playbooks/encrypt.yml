@@ -1,1 +1,182 @@
-/home/vik/projects/eos-daedalus/ansible/playbooks/encrypt.yml
+- hosts: localhost
+  tasks:
+    - name: Ensure Crypto is installed
+      pip:
+        name: pycryptodome
+    
+    - name: Set facts for the test
+      set_fact:
+        filepath: "/tmp/encrypt_tests/encrypt.me"
+        destpath: "/tmp/encrypt_tests/decrypt.me"
+        test_dir: "/tmp/encrypt_tests"
+        key_dir: "/tmp/encrypt_keys"
+    
+    - name: Generate test dir
+      file:
+        path: "{{ test_dir }}"
+        state: directory 
+
+    - name: Generate rsa key dir
+      file:
+        path: "{{ key_dir }}"
+        state: directory
+      delegate_to: localhost
+
+    - name: Generate temporal RSA key
+      shell: "openssl genrsa -out {{ key_dir }}/private_key.pem 2048 && openssl rsa -in {{ key_dir }}/private_key.pem -outform PEM -pubout -out {{ key_dir }}/public_key.pem"
+      changed_when: no
+      delegate_to: localhost
+
+    - name: Generate random file
+      shell: "dd if=/dev/urandom of={{ filepath }} bs=5048576 count=100"
+      changed_when: no
+
+    - name: Get file stats for later comparison
+      stat:
+        path : "{{ filepath }}"
+      register: file_original
+
+    - name: Encrypt file
+      file_crypt:
+        src: "{{ filepath }}"
+        op: encrypt
+        rsa_key_raw: "{{ lookup('file', key_dir + '/public_key.pem') }}"
+    
+    - name: Decrypt file
+      file_crypt:
+        src: "{{ filepath }}.crypt.tgz"
+        dest: "{{ destpath }}"
+        op: decrypt
+        rsa_key_raw: "{{ lookup('file', key_dir + '/private_key.pem') }}"
+
+    - name: Get cksum of my Second File
+      stat:
+        path : "{{ destpath }}"
+      register: mysecondfile
+
+    - debug:
+        msg: "Compare original file with the encrypted/decrypted one"
+      failed_when:  mysecondfile.stat.checksum != file_original.stat.checksum
+
+    - name: Delete files 
+      file: 
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "{{ filepath }}"
+        - "{{ filepath }}.crypt"
+        - "{{ destpath }}"
+
+    - name: Generate another random file
+      shell: "dd if=/dev/urandom of={{ filepath }}.removeme bs=148576 count=100"
+      changed_when: no
+
+    - name: Get file stats for later comparison
+      stat:
+        path : "{{ filepath }}.removeme"
+      register: removeme_original
+
+    - name: Encrypt file
+      file_crypt:
+        src: "{{ filepath }}.removeme"
+        op: encrypt
+        rm_src: yes
+        rsa_key_raw: "{{ lookup('file', key_dir + '/public_key.pem') }}"
+    
+    - name: Get file stats
+      stat:
+        path : "{{ filepath }}.removeme"
+      register: removeme1
+
+    - debug:
+        msg: "Check if file is correctly deleted"
+      failed_when: removeme1.stat.exists
+
+    - name: Decrypt file
+      file_crypt:
+        src: "{{ filepath }}.removeme.crypt.tgz"
+        op: decrypt
+        rm_src: yes
+        rsa_key_raw: "{{ lookup('file', key_dir + '/private_key.pem') }}"
+
+    - name: Get encrypted file stats
+      stat:
+        path : "{{ filepath }}.removeme.crypt"
+      register: removeme2
+
+    - debug:
+        msg: "Check if file is correctly deleted"
+      failed_when: removeme2.stat.exists
+
+    - name: Get final encrypted/decrypted file
+      stat:
+        path : "{{ filepath }}.removeme"
+      register: removeme3
+
+    - debug:
+        msg: "Check if files are correctly decrypted"
+      failed_when: removeme_original.stat.checksum != removeme3.stat.checksum
+
+    - name: Check if module outputs the right error [wrong operation]
+      file_crypt:
+        src: "{{ filepath }}"
+        dest: "{{ destpath }}"
+        op: wrong_operation
+        rm_src: no
+        rsa_key_raw: "{{ lookup('file', key_dir + '/private_key.pem') }}"
+      failed_when: no
+
+    - name: Check if module outputs the right error [wrong key file]
+      file_crypt:
+        src: "{{ filepath }}"
+        dest: "{{ destpath }}"
+        op: decrypt
+        rm_src: no
+        rsa_key_raw: "{{ key_dir }}/not_my_privatkey.pem"
+      failed_when: no
+      
+    - name: Generate random file to test RSA path
+      shell: "dd if=/dev/urandom of={{ filepath }} bs=1048576 count=100"
+      changed_when: no
+      delegate_to: localhost
+
+    - name: Get file stats for later comparison
+      stat:
+        path : "{{ filepath }}"
+      register: file_original
+      delegate_to: localhost
+
+    - name: Encrypt file
+      file_crypt:
+        src: "{{ filepath }}"
+        op: encrypt
+        rsa_key_path: "{{ key_dir }}/public_key.pem"
+      delegate_to: localhost
+    
+    - name: Decrypt file
+      file_crypt:
+        src: "{{ filepath }}.crypt.tgz"
+        dest: "{{ destpath }}"
+        op: decrypt
+        rsa_key_path: "{{ key_dir }}/private_key.pem"
+      delegate_to: localhost
+
+    - name: Get cksum of my Second File
+      stat:
+        path : "{{ destpath }}"
+      register: mysecondfile
+      delegate_to: localhost
+
+    - debug:
+        msg: "Compare original file with the encrypted/decrypted one"
+      failed_when:  mysecondfile.stat.checksum != file_original.stat.checksum
+    - name: Remove test dir
+      file:
+        path: "{{ test_dir }}"
+        state: absent
+
+    - name: Remove keys dir
+      file:
+        path: "{{ key_dir }}"
+        state: absent
+      delegate_to: localhost
