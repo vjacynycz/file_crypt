@@ -84,7 +84,7 @@ file_crypt:
 file_crypt:
   src: /workspace/my_big_file.data.crypt
   op: decypher
-  rsa_key: "{{ lookup('file', key_dir + '/private_key.pem') }}"
+  rsa_key_path: "{{ lookup('file', key_dir + '/private_key.pem') }}"
 '''
 
 RETURN = '''
