@@ -44,7 +44,7 @@
     
     - name: Decrypt file
       file_crypt:
-        src: "{{ filepath }}.crypt.tgz"
+        src: "{{ filepath }}.crypt.tar"
         dest: "{{ destpath }}"
         op: decrypt
         rsa_key_raw: "{{ lookup('file', key_dir + '/private_key.pem') }}"
@@ -94,7 +94,7 @@
 
     - name: Decrypt file
       file_crypt:
-        src: "{{ filepath }}.removeme.crypt.tgz"
+        src: "{{ filepath }}.removeme.crypt.tar"
         op: decrypt
         rm_src: yes
         rsa_key_raw: "{{ lookup('file', key_dir + '/private_key.pem') }}"
@@ -155,7 +155,7 @@
     
     - name: Decrypt file
       file_crypt:
-        src: "{{ filepath }}.crypt.tgz"
+        src: "{{ filepath }}.crypt.tar"
         dest: "{{ destpath }}"
         op: decrypt
         rsa_key_path: "{{ key_dir }}/private_key.pem"

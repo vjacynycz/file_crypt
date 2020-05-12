@@ -45,7 +45,7 @@ options:
         required: true
     dest:
         description:
-            - Optional destination path. Default is source path with a '.crypt' preffix.
+            - Optional destination path. Default is source path with a '.crypt' suffix.
         required: false
     op:
         description:
@@ -182,11 +182,11 @@ def encrypt_operation(key, src, dest, rm_src, log):
 
     # Generate a tar containing the file encrypted and the key
     log.append('Generating tar file')
-    with tarfile.open(dest + '.tgz', "w:gz") as tar:
+    with tarfile.open(dest + '.tar', "w:") as tar:
         tar.add(dest_dirname + '/aes_key.crypt', arcname='aes_key.crypt')
         tar.add(dest, arcname=os.path.basename(dest) )
     os.remove(dest_dirname + '/aes_key.crypt')
-    log.append('Tar file generated: ' + dest + '.tgz')
+    log.append('Tar file generated: ' + dest + '.tar')
 
     # Remove src file if rm_src is true
     if rm_src:
@@ -196,7 +196,7 @@ def encrypt_operation(key, src, dest, rm_src, log):
 def decrypt_operation(key, src, dest, rm_src, log):
     log.append('Decrypting file '+src)
     # Extract tar file
-    with tarfile.open(src, 'r:gz') as tgz:
+    with tarfile.open(src, 'r:') as tgz:
         tgz.extractall(path=os.path.dirname(src))
 
     # Get files
