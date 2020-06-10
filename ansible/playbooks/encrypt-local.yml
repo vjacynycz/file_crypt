@@ -1,0 +1,94 @@
+- hosts: localhost
+  tasks:
+    - name: Set facts for the test
+      set_fact:
+        filepath: "/tmp/encrypt_tests/encrypt.me"
+        destpath: "/tmp/encrypt_tests/decrypt.me"
+        test_dir: "/tmp/encrypt_tests"
+        key_dir: "/tmp/encrypt_keys"
+
+    - name: Generate test dir
+      file:
+        path: "{{ test_dir }}"
+        state: directory
+
+    - name: Generate rsa key dir
+      file:
+        path: "{{ key_dir }}"
+        state: directory
+
+    - name: Generate temporal RSA key
+      shell: "openssl genrsa -out {{ key_dir }}/private_key.pem 2048 && openssl rsa -in {{ key_dir }}/private_key.pem -outform PEM -pubout -out {{ key_dir }}/public_key.pem"
+      changed_when: no
+
+    - name: Generate random file
+      shell: "dd if=/dev/urandom of={{ filepath }} bs=15048576 count=1500"
+      changed_when: no
+
+    - name: Get file stats for later comparison
+      stat:
+        path : "{{ filepath }}"
+      register: file_original
+
+    - name: Get filesize
+      shell: "ls -lah {{ filepath }}"
+      register: fsize
+
+    - name: Encrypt file
+      file_crypt:
+        src: "{{ filepath }}"
+        op: encrypt
+        rsa_key_raw: "{{ lookup('file', key_dir + '/public_key.pem') }}"
+
+    - name: Decrypt file
+      file_crypt:
+        src: "{{ filepath }}.crypt.tar"
+        dest: "{{ destpath }}"
+        op: decrypt
+        rsa_key_raw: "{{ lookup('file', key_dir + '/private_key.pem') }}"
+
+    - name: Get cksum of my Second File
+      stat:
+        path : "{{ destpath }}"
+      register: mysecondfile
+
+    - debug:
+        msg: "Compare original file with the encrypted/decrypted one"
+      failed_when:  mysecondfile.stat.checksum != file_original.stat.checksum
+
+    - name: Delete files
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "{{ filepath }}"
+        - "{{ filepath }}.crypt"
+        - "{{ destpath }}"
+
+    - name: Check if module outputs the right error [wrong operation]
+      file_crypt:
+        src: "{{ filepath }}"
+        dest: "{{ destpath }}"
+        op: wrong_operation
+        rm_src: no
+        rsa_key_raw: "{{ lookup('file', key_dir + '/private_key.pem') }}"
+      failed_when: no
+
+    - name: Check if module outputs the right error [wrong key file]
+      file_crypt:
+        src: "{{ filepath }}"
+        dest: "{{ destpath }}"
+        op: decrypt
+        rm_src: no
+        rsa_key_raw: "{{ key_dir }}/not_my_privatkey.pem"
+      failed_when: no
+
+    - name: Remove test dir
+      file:
+        path: "{{ test_dir }}"
+        state: absent
+
+    - name: Remove keys dir
+      file:
+        path: "{{ key_dir }}"
+        state: absent
